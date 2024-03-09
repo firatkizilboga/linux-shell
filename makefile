@@ -5,6 +5,6 @@ build:
 	sudo chmod +x shellp
 
 run: 
-	./shellp
+	./shellp script.sh
 
 all: build run
