@@ -53,6 +53,7 @@ void TokenPrintRecursive(Token*token){
 
 char* readFile(char* path);
 Token* tokenzize(char* input);
+void* handleTokens(Token* token);
 int main(int argc, char **argv)
 {
     for (int i = 0; i < argc; ++i)
@@ -64,6 +65,7 @@ int main(int argc, char **argv)
     TokenPrintRecursive(token);
 
 }
+void* handleTokens(Token* token){}
 
 bool isDirective(char c){
     switch (c)
@@ -105,6 +107,7 @@ Token* tokenzize(char* input){
                 token->next = TokenInit(TYPE_ARGUMENT);
                 token = token->next;
                 token_i = 0;
+                i++;
                 continue;
             }
             break;
@@ -114,6 +117,7 @@ Token* tokenzize(char* input){
                 token->next = TokenInit(TYPE_DIRECTIVE);
                 token = token->next;
                 token_i = 0;
+
                 continue;
             }
             break;
@@ -123,6 +127,7 @@ Token* tokenzize(char* input){
             token->next = TokenInit(TYPE_EXECUTABLE);
             token = token->next;
             token_i = 0;
+            i++;
             continue;
             break;
         default:
