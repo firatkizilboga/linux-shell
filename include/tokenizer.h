@@ -25,10 +25,10 @@ typedef struct {
     Token* executable;     
     Token* argument;       
     Token* directive;      
-    char* output_buffer;   
-    int pipefd[2];         
+    char* output_buffer;
+    int output_pipefd[2];
+    int input_pipefd[2];
     pid_t pid;
-    bool DONE;
     struct Expression* next; 
 } Expression;
 

@@ -6,15 +6,45 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <limits.h>
 
 ParallelPID* PPIDHead;
 char* output_buffer;
+
+char* trim(char* str) {
+    int start, end, len;
+    char* trimmed;
+
+    // Find first non-whitespace character
+    for (start = 0; str[start] != '\0' && isspace((unsigned char)str[start]); start++);
+
+    // Find last non-whitespace character
+    for (end = strlen(str) - 1; end >= 0 && isspace((unsigned char)str[end]); end--);
+
+    len = end - start + 1;
+
+    if (len <= 0) {
+        trimmed = malloc(1);
+        if (trimmed != NULL) {
+            trimmed[0] = '\0'; // Return empty string if all characters were whitespace
+        }
+    } else {
+        trimmed = malloc(len + 1);
+        if (trimmed != NULL) {
+            strncpy(trimmed, str + start, len);
+            trimmed[len] = '\0';
+        }
+    }
+
+    return trimmed;
+}
+
 
 Token* TokenInit(TYPE type){
     Token* token = (Token*) malloc(sizeof(Token));
 
     token->type = type;
-    token->DATA = (char*)malloc(sizeof(char)*MAX_LINE_LENGTH);
+    token->DATA = (char*)malloc(sizeof(char)*MAX_LINE_LENGTH*11);
     token->next = NULL;
     return token;
 }
@@ -24,9 +54,6 @@ void TokenPrintRecursive(Token*token){
     {
         return;
     }
-    
-    printf("TYPE: %d\n", token->type);
-    printf("DATA: %s\n", token->DATA);
 
     if (token->next == NULL)
     {
@@ -37,13 +64,13 @@ void TokenPrintRecursive(Token*token){
 
 void ExpressionReadPipe(Expression*expression){
     ssize_t bytes_read;
-    const size_t bufferSize = 1024; // Define your buffer size here
+    const size_t bufferSize = 1000; // Define your buffer size here
     expression ->output_buffer = (char*)malloc(sizeof(char) * MAX_LINE_LENGTH);
 
-    while ((bytes_read = read(expression->pipefd[0], expression ->output_buffer, bufferSize - 1)) > 0) {
+    while ((bytes_read = read(expression->output_pipefd[0], expression ->output_buffer, bufferSize - 1)) > 0) {
         expression ->output_buffer[bytes_read] = '\0'; // Null terminate the string
     }
-    close(expression->pipefd[0]); // Close read end of the pipe
+    close(expression->output_pipefd[0]); // Close read end of the pipe
 }
 
 int checkPID(pid_t pid) {
@@ -67,7 +94,7 @@ Expression* ExpressionFindByPID(Expression*expression, pid_t pid){
 
     if (expression->next)
     {
-        return ExpressionFindByPID(expression, pid);
+        return ExpressionFindByPID(expression->next, pid);
     }
     return NULL;
 };
@@ -81,7 +108,6 @@ void ParallelPIDListPoll(Expression* expressions_head, DIRECTIVE directive){
     ParallelPID* curr = PPIDHead->next;
     while (curr)
     {
-        printf("debug 1\n");
         if (checkPID(curr->pid))
         {
             Expression* exp = ExpressionFindByPID(expressions_head, curr->pid);
@@ -90,7 +116,7 @@ void ParallelPIDListPoll(Expression* expressions_head, DIRECTIVE directive){
                 ExpressionReadPipe(exp);
                 if (directive == DIRECTIVE_ENDBUFFER || directive == DIRECTIVE_ENDLINE)
                 {
-                    printf("%s\n", exp->output_buffer);
+                    printf("%s", exp->output_buffer);
                 }
 
                 if (directive == DIRECTIVE_PIPE)
@@ -144,8 +170,6 @@ void ParallelPIDRemove(ParallelPID* PPID, pid_t pid){
 }
 
 int ParallelPIDCount(ParallelPID* PPID){
-    printf("%d->", PPID->pid);
-
     if (PPID->next != NULL)
     {
         return ParallelPIDCount(PPID->next) + 1;
@@ -246,6 +270,7 @@ Expression* ExpressionInit(){
 }
 
 void extractExpressions(Expression* expression, Token*token){
+    token->DATA = trim(token->DATA);
     switch (token->type)
     {
     case TYPE_EXECUTABLE:
@@ -287,13 +312,13 @@ void ExpressionPrint(Expression*expression){
     switch (expression->directive->DATA[0])
     {
     case DIRECTIVE_PIPE:
-        printf("PIPES NEXT\n");
+        printf(" | ");
         break;
     case DIRECTIVE_PARALLELIZE:
-        printf("RUN NEXT\n");
+        printf(" ; ");
         break;
     default:
-        printf("WAIT\n");
+        printf("\n");
     }
 };
 
@@ -312,9 +337,7 @@ void ExpressionPrintRecursive(Expression*expression){
     ExpressionPrintRecursive(expression->next);
 };
 
-void waitParallelPIDs(Expression* expression,DIRECTIVE directive){
-    printf("debug 4 %d\n", ParallelPIDCount(PPIDHead));
-    
+void waitParallelPIDs(Expression* expression,DIRECTIVE directive){    
     while (ParallelPIDCount(PPIDHead) > 0)
     {
         ParallelPIDListPoll(expression, directive);
@@ -323,6 +346,8 @@ void waitParallelPIDs(Expression* expression,DIRECTIVE directive){
 
 void handleExpressions(Expression*expression){
     output_buffer = (char*)malloc(sizeof(char) * MAX_LINE_LENGTH* 10);
+    memset(output_buffer, '\0', MAX_LINE_LENGTH * 10);
+
     ParallelPIDListInit();
 
     Expression*current = expression;
@@ -334,31 +359,33 @@ void handleExpressions(Expression*expression){
         {
             case DIRECTIVE_PIPE:
                 handleExpression(current);
+                memset(output_buffer, '\0', MAX_LINE_LENGTH * 10);
                 waitParallelPIDs(expression,DIRECTIVE_PIPE);
-                strcat(output_buffer, current->output_buffer);
                 break;
 
             case DIRECTIVE_PARALLELIZE:
                 handleExpression(current);
                 break;
             default:
-                memset(output_buffer, 0, MAX_LINE_LENGTH * 10);
                 handleExpression(current);
-                printf("debug 3\n");
+                memset(output_buffer, '\0', MAX_LINE_LENGTH * 10);
                 waitParallelPIDs(expression,DIRECTIVE_ENDLINE);
                 break;
         }
         current = current->next;
     }
 }
-
-
 void handleExpression(Expression*expression){
     pid_t pid;
     ssize_t bytes_read;
     const size_t bufferSize = 1024; // Define your buffer size here
 
-    if (pipe(expression->pipefd) == -1) {
+    if (pipe(expression->output_pipefd) == -1) {
+        perror("pipe");
+        exit(EXIT_FAILURE);
+    }
+
+    if (pipe(expression->input_pipefd) == -1) {
         perror("pipe");
         exit(EXIT_FAILURE);
     }
@@ -371,26 +398,39 @@ void handleExpression(Expression*expression){
 
     if (pid == 0) {
         // Child process
-        close(expression->pipefd[0]); // Close unused read end
-        dup2(expression->pipefd[1], STDOUT_FILENO); // Redirect stdout to pipe
-        close(expression->pipefd[1]); // Close write end of the pipe
+        close(expression->output_pipefd[0]); // Close unused read end
+        dup2(expression->output_pipefd[1], STDOUT_FILENO); // Redirect stdout to pipe
+        close(expression->output_pipefd[1]); // Close write end of the pipe
 
-        char *args[] = {expression->executable->DATA, expression->argument->DATA, NULL}; // Replace 'example.txt' with your file
-        execvp(expression->executable->DATA, args);
+        close(expression->input_pipefd[1]); // Close unused write end of input pipe
+        dup2(expression->input_pipefd[0], STDIN_FILENO); // Redirect stdin to pipe
+        close(expression->input_pipefd[0]); // Close read end of the pipe
+
+
+        char *args_A[] = {expression->executable->DATA, expression->argument->DATA, NULL}; // Replace 'example.txt' with your file
+        char *args_B[] = {expression->executable->DATA, NULL};
+        
+        execvp(expression->executable->DATA, 
+                                            strlen(expression->argument->DATA)>0?args_A:args_B);
+                                            
         perror("execvp");
         exit(EXIT_FAILURE);
 
     } else {
         expression->pid = pid;
-        close(expression->pipefd[1]); // Close unused write end
+        close(expression->output_pipefd[1]); // Close unused write end
+        close(expression->input_pipefd[0]); // Close unused write end
+
+        write(expression->input_pipefd[1], output_buffer, strlen(output_buffer));
+        close(expression->input_pipefd[1]); // Close the write end of the pipe  
+        
 
         expression->output_buffer = (char*) malloc(bufferSize); // Dynamically allocate memory
         if (!expression ->output_buffer) {
             perror("malloc");
             exit(EXIT_FAILURE);
         }
-        printf("debug 2\n");
+
         ParallelPIDInsert(PPIDHead, expression->pid);
     }
 };
-

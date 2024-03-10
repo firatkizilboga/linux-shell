@@ -18,7 +18,6 @@ int main(int argc, char **argv)
     TokenPrintRecursive(token);
     Expression*expression = ExpressionInit();
     extractExpressions(expression, token);
-    ExpressionPrintRecursive(expression);
     handleExpressions(expression);
 }
 
