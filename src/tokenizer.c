@@ -10,6 +10,7 @@
 
 ParallelPID* PPIDHead;
 char* output_buffer;
+char cwd[PATH_MAX];
 
 char* trim(char* str) {
     int start, end, len;
@@ -45,6 +46,7 @@ Token* TokenInit(TYPE type){
 
     token->type = type;
     token->DATA = (char*)malloc(sizeof(char)*MAX_LINE_LENGTH*11);
+    memset(token->DATA, '\0', MAX_LINE_LENGTH*11);
     token->next = NULL;
     return token;
 }
@@ -82,6 +84,9 @@ int checkPID(pid_t pid) {
         // Check if the child process terminated normally
         if (WIFEXITED(status)) {
             return 1;  // Process has terminated normally
+        }
+        if (WIFSIGNALED(status)){
+            return 1;
         }
     }
     return 0;  // Process is still running or waitpid returned an error
@@ -200,71 +205,73 @@ static inline bool isDirective(char c){
 
 Token* tokenize(char* input){
     Token* token = TokenInit(TYPE_EXECUTABLE);
-    Token* head = token;
+    tokenzieRecursively(input, token, 0);
+    return token;
+}
 
 
-    int i = 0;
-    int token_i = 0;
-    while (input[i] != '\0')
+void tokenzieRecursively(char* input, Token * token, int token_i){
+    if (*input == '\0')
     {
-        char c = input[i];
-        switch (token->type)
+        if (token->type != TYPE_DIRECTIVE)
         {
+            token->next = TokenInit(TYPE_DIRECTIVE);
+            Token*t = token->next;
+            t->DATA[0] = '\0';
+        }
+
+        token->DATA[token_i] = '\0';
+        return;
+    }
+
+    switch (token->type)
+    {
         case TYPE_EXECUTABLE:
-            if (c==SEPERATOR)
+            if (*input == SEPERATOR | isDirective(*input))
             {
-                token->DATA[token_i] = '\0';
-                token->next = TokenInit(TYPE_ARGUMENT);
-                token = token->next;
-                token_i = 0;
-                i++;
-                continue;
+                while (*input == SEPERATOR)
+                {
+                    input++;
+                }
+                TYPE type = isDirective(*input) ? TYPE_DIRECTIVE : TYPE_ARGUMENT;
+                token->next = TokenInit(type);
+                return tokenzieRecursively(input, token->next, 0);
             }
+            token->DATA[token_i] = *input;
+            return tokenzieRecursively(input+1, token, token_i+1);
             break;
         case TYPE_ARGUMENT:
-            if (isDirective(c)){
-                token->DATA[token_i] = '\0';
+            if (isDirective(*input))
+            {
                 token->next = TokenInit(TYPE_DIRECTIVE);
-                token = token->next;
-                token_i = 0;
-
-                continue;
+                return tokenzieRecursively(input, token->next, 0);
             }
+
+            token->DATA[token_i] = *input;
+            return tokenzieRecursively(input+1, token, token_i+1);
             break;
         case TYPE_DIRECTIVE:
-            token->DATA[token_i] = c;
-            token->DATA[token_i+1] = '\0';
+            token->DATA[token_i] = *input;
             token->next = TokenInit(TYPE_EXECUTABLE);
-            token = token->next;
-            token_i = 0;
-            i++;
-            continue;
+            input++;
+            while (*input == SEPERATOR)
+            {
+                input++;
+            }
+            return tokenzieRecursively(input, token->next, 0);
             break;
         default:
             break;
-        }
-
-        token->DATA[token_i] = c;
-        i++;
-        token_i++;
-    }
-    if (token_i != 0 && token->DATA[token_i] != DIRECTIVE_ENDBUFFER){
-        token->DATA[token_i] = DIRECTIVE_ENDBUFFER;
-    }
-
-    if (token->type != TYPE_DIRECTIVE)
-    {
-        token->next = TokenInit(TYPE_DIRECTIVE);
-        token = token->next;
-        token->DATA[0] = DIRECTIVE_ENDBUFFER;
     }
     
-    
-    return head;
-}
+};
+
 
 Expression* ExpressionInit(){
     Expression* exp = (Expression*) malloc(sizeof(Expression));
+    exp->argument = NULL;
+    exp->executable = NULL;
+    exp->directive = NULL;
     exp->next = NULL;
     return exp;
 }
@@ -295,7 +302,7 @@ void extractExpressions(Expression* expression, Token*token){
     if(token->next == NULL){
         return;
     }
-    
+
     extractExpressions(
         (expression->next) ? expression->next:expression,
         token->next
@@ -344,17 +351,24 @@ void waitParallelPIDs(Expression* expression,DIRECTIVE directive){
     }
 };
 
+int handleCD(Expression*expression){
+    if (expression->argument && strlen(expression->argument->DATA) > 0)
+    {
+        return chdir(expression->argument->DATA);
+    } else {
+        return chdir(getenv("HOME"));
+    }
+}
+
 void handleExpressions(Expression*expression){
     output_buffer = (char*)malloc(sizeof(char) * MAX_LINE_LENGTH* 10);
     memset(output_buffer, '\0', MAX_LINE_LENGTH * 10);
-
     ParallelPIDListInit();
 
+    
     Expression*current = expression;
     while (current)
     {
-        ExpressionPrint(current);
-
         switch (current->directive->DATA[0])
         {
             case DIRECTIVE_PIPE:
@@ -369,16 +383,27 @@ void handleExpressions(Expression*expression){
             default:
                 handleExpression(current);
                 memset(output_buffer, '\0', MAX_LINE_LENGTH * 10);
-                waitParallelPIDs(expression,DIRECTIVE_ENDLINE);
+                waitParallelPIDs(expression, DIRECTIVE_ENDLINE);
                 break;
         }
         current = current->next;
     }
 }
+
 void handleExpression(Expression*expression){
     pid_t pid;
     ssize_t bytes_read;
     const size_t bufferSize = 1024; // Define your buffer size here
+    ExpressionPrint(expression);
+    if (strcmp(expression->executable->DATA, "cd") == 0){
+        if (handleCD(expression) == 0){
+            return;
+        }else{
+            printf("%s: No such file or directory\n", expression->argument->DATA);
+            return;
+        }
+    };
+
 
     if (pipe(expression->output_pipefd) == -1) {
         perror("pipe");
@@ -404,15 +429,30 @@ void handleExpression(Expression*expression){
 
         close(expression->input_pipefd[1]); // Close unused write end of input pipe
         dup2(expression->input_pipefd[0], STDIN_FILENO); // Redirect stdin to pipe
-        close(expression->input_pipefd[0]); // Close read end of the pipe
+        close(expression->input_pipefd[0]); // Close read end of the pip
 
+        if (expression == NULL || expression->executable == NULL || expression->executable->DATA == NULL) {
+            fprintf(stderr, "Error: Invalid 'expression' structure.\n");
+            exit(EXIT_FAILURE);
+        }
 
-        char *args_A[] = {expression->executable->DATA, expression->argument->DATA, NULL}; // Replace 'example.txt' with your file
-        char *args_B[] = {expression->executable->DATA, NULL};
+        char *args_A[3] = {expression->executable->DATA, NULL, NULL};
+        char *args_B[2] = {expression->executable->DATA, NULL};
+
+        if (expression->argument && expression->argument->DATA && strlen(expression->argument->DATA)) {
+            args_A[1] = expression->argument->DATA; // Ensure DATA is not NULL
+        }
+
+        // Using ternary operator to choose between args_A and args_B
+        char **exec_args = expression->argument && expression->argument->DATA ? args_A : args_B;
+
+        if (expression->executable && expression->executable->DATA && strlen(expression->executable->DATA))
+        {
+            execvp(exec_args[0], exec_args);
+        } else{
+            exit(EXIT_FAILURE);
+        }
         
-        execvp(expression->executable->DATA, 
-                                            strlen(expression->argument->DATA)>0?args_A:args_B);
-                                            
         perror("execvp");
         exit(EXIT_FAILURE);
 
@@ -420,6 +460,7 @@ void handleExpression(Expression*expression){
         expression->pid = pid;
         close(expression->output_pipefd[1]); // Close unused write end
         close(expression->input_pipefd[0]); // Close unused write end
+        fflush(stdout);
 
         write(expression->input_pipefd[1], output_buffer, strlen(output_buffer));
         close(expression->input_pipefd[1]); // Close the write end of the pipe  
