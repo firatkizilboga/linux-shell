@@ -11,6 +11,7 @@
 ParallelPID* PPIDHead;
 char* output_buffer;
 char cwd[PATH_MAX];
+Expression* expression_head;
 
 char* trim(char* str) {
     int start, end, len;
@@ -359,7 +360,34 @@ int handleCD(Expression*expression){
         return chdir(getenv("HOME"));
     }
 }
+void handleHistory(Expression*expression){
+    Expression* expression_head_cpy = expression_head;
+    
+    bool state = true;
+    int i = 1;
+    while (true)
+    {
+        if (state)
+        {
+            printf("%d ", i);
+            i++;
+        }
+        ExpressionPrint(expression_head_cpy);
 
+        if (expression_head_cpy->directive->DATA[0] == DIRECTIVE_PIPE || expression_head_cpy->directive->DATA[0] == DIRECTIVE_PARALLELIZE)
+        {
+            state = false;
+        } else {
+            state = true;
+        }
+        expression_head_cpy = expression_head_cpy->next;
+        if (expression_head_cpy == expression)
+        {
+            break;
+        }
+        
+    }
+};
 void handleExpressions(Expression*expression){
     output_buffer = (char*)malloc(sizeof(char) * MAX_LINE_LENGTH* 10);
     memset(output_buffer, '\0', MAX_LINE_LENGTH * 10);
@@ -402,6 +430,11 @@ void handleExpression(Expression*expression){
             printf("%s: No such file or directory\n", expression->argument->DATA);
             return;
         }
+    };
+    if (strcmp(expression->executable->DATA, "history") == 0){
+        handleHistory(expression);
+        return;
+        
     };
 
 

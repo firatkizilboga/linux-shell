@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <tokenizer.h>
-
+extern Expression*expression_head;
 char* readFile(char* path);
 Token* tokenize(char* input);
 void* handleTokens(Token* token);
@@ -16,11 +16,9 @@ int main(int argc, char **argv)
     Token* token = tokenize(readFile(argv[1]));
 
     TokenPrintRecursive(token);
-    Expression*expression = ExpressionInit();
-    extractExpressions(expression, token);
-
-
-    handleExpressions(expression);
+    expression_head = ExpressionInit();
+    extractExpressions(expression_head, token);
+    handleExpressions(expression_head);
 }
 
 
