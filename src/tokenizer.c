@@ -455,6 +455,12 @@ void handleExpressions(Expression*expression, bool print_prompt){
     }
 }
 
+handleQuit(Expression*expression){
+    waitParallelPIDs(expression, DIRECTIVE_ENDBUFFER);
+    printf("Goodbye!\n");
+    exit(EXIT_SUCCESS);
+}
+
 void handleExpression(Expression*expression){
     pid_t pid;
     ssize_t bytes_read;
@@ -469,6 +475,11 @@ void handleExpression(Expression*expression){
     };
     if (strcmp(expression->executable->DATA, "history") == 0){
         handleHistory(expression);
+        return;
+    };
+
+    if (strcmp(expression->executable->DATA, "quit") == 0){
+        handleQuit(expression);
         return;
     };
 
@@ -518,10 +529,12 @@ void handleExpression(Expression*expression){
         {
             execvp(exec_args[0], exec_args);
         } else{
+            fprintf(stderr, "Error: Invalid 'expression' structure.\n");
             exit(EXIT_FAILURE);
         }
         
-        perror("execvp");
+
+        fprintf(stderr, "%s: command not found.\n", expression->executable->DATA);
         exit(EXIT_FAILURE);
 
     } else {
