@@ -278,7 +278,17 @@ Expression* ExpressionInit(){
 }
 
 void extractExpressions(Expression* expression, Token*token){
-    token->DATA = trim(token->DATA);
+    
+    char * trimmed = trim(token->DATA);
+    if (token->type != TYPE_DIRECTIVE)
+    {
+        if (token->DATA[0] != '\n')
+        {
+            token->DATA = trimmed;
+        }
+        
+    }
+    
     switch (token->type)
     {
     case TYPE_EXECUTABLE:
@@ -309,7 +319,21 @@ void extractExpressions(Expression* expression, Token*token){
         token->next
     );
 };
+void expressionsAppend(Expression* expression_tail){
+    if (!expression_head)
+    {
+        expression_head = expression_tail;
+        return;
+    }
 
+    Expression*expression_head_cpy = expression_head;
+    
+    while (expression_head_cpy->next)
+    {
+        expression_head_cpy = expression_head_cpy->next;
+    }
+    expression_head_cpy -> next = expression_tail;
+};
 void ExpressionPrint(Expression*expression){
     printf("%s ", expression->executable->DATA);
     if (expression->argument)
@@ -360,12 +384,13 @@ int handleCD(Expression*expression){
         return chdir(getenv("HOME"));
     }
 }
+
 void handleHistory(Expression*expression){
     Expression* expression_head_cpy = expression_head;
     
     bool state = true;
     int i = 1;
-    while (true)
+    while (expression_head_cpy)
     {
         if (state)
         {
@@ -373,7 +398,7 @@ void handleHistory(Expression*expression){
             i++;
         }
         ExpressionPrint(expression_head_cpy);
-
+        //fflush(stdout);
         if (expression_head_cpy->directive->DATA[0] == DIRECTIVE_PIPE || expression_head_cpy->directive->DATA[0] == DIRECTIVE_PARALLELIZE)
         {
             state = false;
@@ -383,12 +408,19 @@ void handleHistory(Expression*expression){
         expression_head_cpy = expression_head_cpy->next;
         if (expression_head_cpy == expression)
         {
+            if (state)
+            {
+                printf("%d ", i);
+                i++;
+            }
+            ExpressionPrint(expression_head_cpy);
             break;
         }
         
     }
 };
-void handleExpressions(Expression*expression){
+
+void handleExpressions(Expression*expression, bool print_prompt){
     output_buffer = (char*)malloc(sizeof(char) * MAX_LINE_LENGTH* 10);
     memset(output_buffer, '\0', MAX_LINE_LENGTH * 10);
     ParallelPIDListInit();
@@ -397,6 +429,11 @@ void handleExpressions(Expression*expression){
     Expression*current = expression;
     while (current)
     {
+        if (print_prompt)
+        {
+            ExpressionPrint(current);
+        }
+        
         switch (current->directive->DATA[0])
         {
             case DIRECTIVE_PIPE:
@@ -422,7 +459,6 @@ void handleExpression(Expression*expression){
     pid_t pid;
     ssize_t bytes_read;
     const size_t bufferSize = 1024; // Define your buffer size here
-    ExpressionPrint(expression);
     if (strcmp(expression->executable->DATA, "cd") == 0){
         if (handleCD(expression) == 0){
             return;
@@ -434,7 +470,6 @@ void handleExpression(Expression*expression){
     if (strcmp(expression->executable->DATA, "history") == 0){
         handleHistory(expression);
         return;
-        
     };
 
 
@@ -493,7 +528,6 @@ void handleExpression(Expression*expression){
         expression->pid = pid;
         close(expression->output_pipefd[1]); // Close unused write end
         close(expression->input_pipefd[0]); // Close unused write end
-        fflush(stdout);
 
         write(expression->input_pipefd[1], output_buffer, strlen(output_buffer));
         close(expression->input_pipefd[1]); // Close the write end of the pipe  

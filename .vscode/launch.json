@@ -6,7 +6,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/shellp",
-            "args": ["/home/debian/Desktop/MacOS/BLG312/script.sh"],
+            "args": ["/home/debian/Desktop/MacOS/BLG312/script2.sh"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

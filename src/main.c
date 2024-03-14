@@ -3,22 +3,25 @@
 #include <string.h>
 #include <stdbool.h>
 #include <tokenizer.h>
+#include <interpreter.h>
+
 extern Expression*expression_head;
 char* readFile(char* path);
 Token* tokenize(char* input);
 void* handleTokens(Token* token);
 int main(int argc, char **argv)
 {
-    for (int i = 0; i < argc; ++i)
-    {
-        printf("argv[%d]: %s\n", i, argv[i]);
-    }
-    Token* token = tokenize(readFile(argv[1]));
 
-    TokenPrintRecursive(token);
+    if (argc < 2)
+    {
+        interpreter();
+    }
+    expression_head = NULL;
+    Token* token = tokenize(readFile(argv[1]));
     expression_head = ExpressionInit();
     extractExpressions(expression_head, token);
-    handleExpressions(expression_head);
+    TokenPrintRecursive(token);
+    handleExpressions(expression_head, true);
 }
 
 
