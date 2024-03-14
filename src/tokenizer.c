@@ -456,7 +456,11 @@ void handleExpressions(Expression*expression, bool print_prompt){
 }
 
 handleQuit(Expression*expression){
-    waitParallelPIDs(expression, DIRECTIVE_ENDBUFFER);
+    if (expression)
+    {
+        waitParallelPIDs(expression, DIRECTIVE_ENDBUFFER);
+    }
+    
     printf("Goodbye!\n");
     exit(EXIT_SUCCESS);
 }

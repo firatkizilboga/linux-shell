@@ -18,7 +18,13 @@ void interpreter(){
         Expression* expression_tail = ExpressionInit();
         printf(">>> ");
         fgets(str, 250, stdin);
-        //get last char
+        //check if EOF
+
+        if (feof(stdin))
+        {
+            handleQuit(NULL);
+        }
+        
         str[strlen(str)-1] = '\0';
 
         Token* token = tokenize(str);
