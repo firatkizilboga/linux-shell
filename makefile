@@ -1,6 +1,5 @@
 .PHONY: build run debug
 
-
 build:
 	sudo gcc -g -c src/tokenizer.c -o build/tokenizer.o -I./include -Wall
 	sudo gcc -g -c src/interpreter.c -o build/interpreter.o -I./include -Wall

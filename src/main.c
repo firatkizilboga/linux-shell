@@ -11,17 +11,22 @@ Token* tokenize(char* input);
 void* handleTokens(Token* token);
 int main(int argc, char **argv)
 {
+    ParallelPIDListInit();
 
     if (argc < 2)
     {
         interpreter();
     }
+
     expression_head = NULL;
-    Token* token = tokenize(readFile(argv[1]));
+    char * input = readFile(argv[1]);
+    Token* token = tokenize(input);
+    free(input);
+    
     expression_head = ExpressionInit();
     extractExpressions(expression_head, token);
-    TokenPrintRecursive(token);
     handleExpressions(expression_head, true);
+    gracefulExit(EXIT_SUCCESS);
 }
 
 

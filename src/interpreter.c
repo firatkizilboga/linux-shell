@@ -10,8 +10,6 @@
 extern Expression*expression_head;
 
 void interpreter(){
-    
-
     while (true)
     {
         char str[MAX_LINE_LENGTH];
@@ -19,6 +17,13 @@ void interpreter(){
         printf(">>> ");
         fgets(str, 250, stdin);
         //check if EOF
+
+        //if its just \n, ignore
+        if (str[0] == '\n')
+        {
+            continue;
+        }
+
 
         if (feof(stdin))
         {
@@ -28,8 +33,11 @@ void interpreter(){
         str[strlen(str)-1] = '\0';
 
         Token* token = tokenize(str);
+
         extractExpressions(expression_tail, token);
+
         expressionsAppend(expression_tail);
         handleExpressions(expression_tail, false);
     }
+    gracefulExit(EXIT_SUCCESS);
 };

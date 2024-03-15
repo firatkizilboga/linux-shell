@@ -47,3 +47,4 @@ void ExpressionPrint(Expression*expression);
 void ExpressionPrintRecursive(Expression*expression);
 void handleExpression(Expression*expression);
 void handleExpressions(Expression*expression, bool print_prompt);
+__attribute__((noreturn)) gracefulExit(int status);

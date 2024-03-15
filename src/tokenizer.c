@@ -9,7 +9,7 @@
 #include <limits.h>
 
 ParallelPID* PPIDHead;
-char* output_buffer;
+char output_buffer[MAX_LINE_LENGTH* 10];
 char cwd[PATH_MAX];
 Expression* expression_head;
 
@@ -28,7 +28,7 @@ char* trim(char* str) {
     if (len <= 0) {
         trimmed = malloc(1);
         if (trimmed != NULL) {
-            trimmed[0] = '\0'; // Return empty string if all characters were whitespace
+            trimmed[0] = str[0];
         }
     } else {
         trimmed = malloc(len + 1);
@@ -52,11 +52,18 @@ Token* TokenInit(TYPE type){
     return token;
 }
 
+void TokenDestroy(Token* token){
+    free(token->DATA);
+    free(token);
+    return NULL;
+}
+
 void TokenPrintRecursive(Token*token){
     if (token == NULL)
     {
         return;
     }
+    printf("%s ", token->DATA);
 
     if (token->next == NULL)
     {
@@ -68,7 +75,6 @@ void TokenPrintRecursive(Token*token){
 void ExpressionReadPipe(Expression*expression){
     ssize_t bytes_read;
     const size_t bufferSize = 1000; // Define your buffer size here
-    expression ->output_buffer = (char*)malloc(sizeof(char) * MAX_LINE_LENGTH);
 
     while ((bytes_read = read(expression->output_pipefd[0], expression ->output_buffer, bufferSize - 1)) > 0) {
         expression ->output_buffer[bytes_read] = '\0'; // Null terminate the string
@@ -277,17 +283,28 @@ Expression* ExpressionInit(){
     return exp;
 }
 
+
+
 void extractExpressions(Expression* expression, Token*token){
-    
     char * trimmed = trim(token->DATA);
+    
     if (token->type != TYPE_DIRECTIVE)
     {
         if (token->DATA[0] != '\n')
         {
+            free(token->DATA);
             token->DATA = trimmed;
         }
-        
+        else
+        {
+            free(trimmed);
+            trimmed = NULL;
+        }
+    } else
+    {
+        free(trimmed);
     }
+    
     
     switch (token->type)
     {
@@ -319,6 +336,43 @@ void extractExpressions(Expression* expression, Token*token){
         token->next
     );
 };
+
+
+void ExpressionDestroy(Expression*expression){
+    if (!expression)
+    {
+        return;
+    }
+    
+    if (expression->next)
+    {
+        ExpressionDestroy(expression->next);
+    }
+
+    if (expression->output_buffer)
+    {
+        free(expression->output_buffer);
+    }
+    
+    if (expression->executable)
+    {
+        TokenDestroy(expression->executable);
+    }
+
+    if (expression->argument)
+    {
+        TokenDestroy(expression->argument);
+    }
+
+    if (expression->directive)
+    {
+        TokenDestroy(expression->directive);
+    }
+
+    free(expression);
+}
+
+
 void expressionsAppend(Expression* expression_tail){
     if (!expression_head)
     {
@@ -421,9 +475,7 @@ void handleHistory(Expression*expression){
 };
 
 void handleExpressions(Expression*expression, bool print_prompt){
-    output_buffer = (char*)malloc(sizeof(char) * MAX_LINE_LENGTH* 10);
     memset(output_buffer, '\0', MAX_LINE_LENGTH * 10);
-    ParallelPIDListInit();
 
     
     Expression*current = expression;
@@ -455,20 +507,32 @@ void handleExpressions(Expression*expression, bool print_prompt){
     }
 }
 
+__attribute__((noreturn)) gracefulExit(int status){
+    ExpressionDestroy(expression_head);
+
+    if (PPIDHead)
+    {
+        free(PPIDHead);
+    }
+
+    exit(status);
+}
+
 handleQuit(Expression*expression){
     if (expression)
     {
         waitParallelPIDs(expression, DIRECTIVE_ENDBUFFER);
     }
-    
+
     printf("Goodbye!\n");
-    exit(EXIT_SUCCESS);
+    gracefulExit(EXIT_SUCCESS);
 }
 
 void handleExpression(Expression*expression){
     pid_t pid;
     ssize_t bytes_read;
-    const size_t bufferSize = 1024; // Define your buffer size here
+    expression ->output_buffer = (char*)malloc(sizeof(char) * MAX_LINE_LENGTH);
+
     if (strcmp(expression->executable->DATA, "cd") == 0){
         if (handleCD(expression) == 0){
             return;
@@ -548,14 +612,7 @@ void handleExpression(Expression*expression){
 
         write(expression->input_pipefd[1], output_buffer, strlen(output_buffer));
         close(expression->input_pipefd[1]); // Close the write end of the pipe  
-        
-
-        expression->output_buffer = (char*) malloc(bufferSize); // Dynamically allocate memory
-        if (!expression ->output_buffer) {
-            perror("malloc");
-            exit(EXIT_FAILURE);
-        }
-
+     
         ParallelPIDInsert(PPIDHead, expression->pid);
     }
 };
