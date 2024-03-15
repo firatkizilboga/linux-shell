@@ -1,4 +1,3 @@
-#pragma once
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -6,11 +5,12 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#include <limits.h>
+#include <linux/limits.h>
 
 ParallelPID* PPIDHead;
 char output_buffer[MAX_LINE_LENGTH* 10];
 char cwd[PATH_MAX];
+
 Expression* expression_head;
 
 char* trim(char* str) {
@@ -55,7 +55,7 @@ Token* TokenInit(TYPE type){
 void TokenDestroy(Token* token){
     free(token->DATA);
     free(token);
-    return NULL;
+    return;
 }
 
 void TokenPrintRecursive(Token*token){

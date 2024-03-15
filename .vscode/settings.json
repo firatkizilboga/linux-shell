@@ -4,6 +4,11 @@
         "stdbool.h": "c",
         "stdio.h": "c",
         "wait.h": "c",
-        "tokenizer.h": "c"
+        "tokenizer.h": "c",
+        "unistd.h": "c",
+        "__locale": "c",
+        "cctype": "c",
+        "locale": "c",
+        "string.h": "c"
     }
 }

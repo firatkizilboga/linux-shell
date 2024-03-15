@@ -1,5 +1,9 @@
+#pragma once
 #define MAX_LINE_LENGTH 250
 #define SEPERATOR ' '
+#include <unistd.h>
+#include <sys/types.h>
+
 
 typedef enum {
     TYPE_EXECUTABLE, //any
@@ -38,13 +42,15 @@ typedef struct {
 } ParallelPID;
 
 Token* TokenInit(TYPE type);
-void TokenPrintRecursive(Token*token);
 Token* tokenize(char* input);
+
 Expression* ExpressionInit();
+
 void expressionsAppend(Expression* expression_tail);
 void extractExpressions(Expression* expression, Token*token);
 void ExpressionPrint(Expression*expression);
 void ExpressionPrintRecursive(Expression*expression);
-void handleExpression(Expression*expression);
 void handleExpressions(Expression*expression, bool print_prompt);
+
 __attribute__((noreturn)) gracefulExit(int status);
+
