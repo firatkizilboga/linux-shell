@@ -51,6 +51,11 @@ void extractExpressions(Expression* expression, Token*token);
 void ExpressionPrint(Expression*expression);
 void ExpressionPrintRecursive(Expression*expression);
 void handleExpressions(Expression*expression, bool print_prompt);
+void handleExpression(Expression*expression);
+void tokenzieRecursively(char* input, Token * token, int token_i);
+void ParallelPIDRemove(ParallelPID* PPID, pid_t pid);
+void handleQuit(Expression*expression);
+void ParallelPIDListInit();
 
-__attribute__((noreturn)) gracefulExit(int status);
+__attribute__((noreturn)) void gracefulExit(int status);
 

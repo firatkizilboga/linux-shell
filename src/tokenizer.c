@@ -5,7 +5,15 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <ctype.h>
+
+#ifndef __linux__
+#include <limits.h>
+#endif
+
+#ifdef __linux__
 #include <linux/limits.h>
+#endif
 
 ParallelPID* PPIDHead;
 char output_buffer[MAX_LINE_LENGTH* 10];
@@ -507,7 +515,7 @@ void handleExpressions(Expression*expression, bool print_prompt){
     }
 }
 
-__attribute__((noreturn)) gracefulExit(int status){
+__attribute__((noreturn)) void gracefulExit(int status){
     ExpressionDestroy(expression_head);
 
     if (PPIDHead)
@@ -518,7 +526,7 @@ __attribute__((noreturn)) gracefulExit(int status){
     exit(status);
 }
 
-handleQuit(Expression*expression){
+void handleQuit(Expression*expression){
     if (expression)
     {
         waitParallelPIDs(expression, DIRECTIVE_ENDBUFFER);
